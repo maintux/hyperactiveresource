@@ -1,7 +1,6 @@
-HyperactiveResource
-===================
+#HyperactiveResource
 
-v0.1
+HyperActiveResource extends ActiveResource so it works properly and behaves more like ActiveRecord
 
 Many have said that ActiveResource is not really "complete". On the surface,
 this means that some features that are documented aren't implemented. Digging a
@@ -14,7 +13,7 @@ Hyperactive Resource is MDL's extension to ActiveResource::Base written to
 support our Patient Registry and goes a long way towards the goal of an
 ActiveResource that behaves like ActiveRecord.
 
-Features
+##Features
  * Client side validations
  * Hooks for before_validate, before_save
  * Dynamic finders: find_by_X
@@ -31,15 +30,9 @@ Features
    * Nested resource saving (creating a patient will create their associated addresses)
    * Mapping associations ([:gender].id will serialize as :gender_id)
 
-Example
-=======
+###Example
 
- 1. Install the plugin via:
-
-    cd path/to/rails_root/vendor/plugins
-    git clone git://github.com/lukegalea/hyperactiveresource.git
-
- 2. Create a HyperactiveResource where you would normally use ActiveResource
+ 1. Create a HyperactiveResource where you would normally use ActiveResource
     and define the meta-data/associations that drive the dynamic magic:
 
     class Address < HyperactiveResource
@@ -56,4 +49,4 @@ Example
     address.country #Returns Country.find(5)
   etc..
 
-Copyright (c) 2008 Medical Decision Logic, released under the MIT license
+Copyright (c) 2008 Medical Decision Logic, 2013 Massimo Maino released under the MIT license
