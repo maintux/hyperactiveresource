@@ -646,6 +646,7 @@ class HyperactiveResource < ActiveResource::Base
     class_inheritable_accessor :has_ones #:nodoc:
     class_inheritable_accessor :nested_has_ones #:nodoc:
     class_inheritable_accessor :belong_tos #:nodoc:
+    class_inheritable_accessor :belong_to_class_names #:nodoc:
     class_inheritable_accessor :nested_resources #:nodoc:
     class_inheritable_accessor :skip_to_xml_for
     class_inheritable_accessor :add_to_xml_for
@@ -656,6 +657,7 @@ class HyperactiveResource < ActiveResource::Base
     self.has_ones = [] #:nodoc:
     self.nested_has_ones = [] #:nodoc:
     self.belong_tos = [] #:nodoc:
+    self.belong_to_class_names = {} #:nodoc:
 
     self.skip_to_xml_for = [] #:nodoc:
     self.add_to_xml_for = [] #:nodoc:
@@ -675,6 +677,9 @@ class HyperactiveResource < ActiveResource::Base
     def self.belongs_to( names, opts = {} )
       raise ArgumentError if names.blank?
       if !opts.blank?
+        if opts.has_key?(:class_name) and not names.is_a?(Array)
+          self.belong_to_class_names.merge!({names=>opts[:class_name]})
+        end
         # setup a nested resource route for this belongs_to association.
         if opts.has_key?(:nested) && opts[:nested] 
           raise ArgumentError, "the nested option can only deal with a single association at present, you passed #{names.length}" if names.blank? || (names.acts_like?(:array) && names.length != 1)
@@ -768,7 +773,7 @@ class HyperactiveResource < ActiveResource::Base
       return nil if association_id.blank? 
 
       #If there is a blah_id but not blah get it via a find
-      call_setter(name, name.to_s.camelize.constantize.find(association_id))
+      call_setter(name, (self.belong_to_class_names[name]||name).to_s.camelize.constantize.find(association_id))
     end
     
     #Getter for a belong_to's id will return the object.to_param if it exists
