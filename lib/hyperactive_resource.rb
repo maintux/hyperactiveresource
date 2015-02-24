@@ -3,7 +3,7 @@
 class AbstractRecordError < StandardError; end
 
 # for HyperactiveResource method deprecations
-module Deprecation 
+module Deprecation
   self.extend ActiveSupport::Deprecation
 end
 
@@ -115,8 +115,12 @@ class HyperactiveResource < ActiveResource::Base
   require "active_record"
   # need to use load because require will kill active_record's own require
   # of the validatios module
-  load "active_record/validations.rb"
 
+  # Supress warning messages.
+  original_verbose, $VERBOSE = $VERBOSE, nil
+  load "active_record/validations.rb"
+  # Activate warning messages again.
+  $VERBOSE = original_verbose
 
   # Active\Resource's errors object is only a random selection of
   # ActiveRecord's error methods - and most of them are just copies of older
@@ -124,22 +128,22 @@ class HyperactiveResource < ActiveResource::Base
   # So why not just inherit the attributes and add in the *only*
   # ActiveResource method that actually differs?
   class Errors < ActiveRecord::Errors
-    
+
     def initialize(base) # :nodoc:
       @base, @errors = base, {}
     end
 
-  # Edited from ActiveRecord as we don't yet fully support 
+  # Edited from ActiveRecord as we don't yet fully support
   # associations
     def generate_message(attribute, message = :invalid, options = {})
 
       message, options[:default] = options[:default], message if options[:default].is_a?(Symbol)
 
       defaults = [@base.class].map do |klass|
-        [ "models.#{klass.name.underscore}.attributes.#{attribute}.#{message}".to_sym, 
+        [ "models.#{klass.name.underscore}.attributes.#{attribute}.#{message}".to_sym,
           "models.#{klass.name.underscore}.#{message}".to_sym ]
       end
-      
+
       defaults << options.delete(:default)
       defaults = defaults.compact.flatten << "messages.#{message}".to_sym
 
@@ -156,7 +160,7 @@ class HyperactiveResource < ActiveResource::Base
       I18n.translate(key, options)
     end
 
-    
+
     # Grabs errors from the XML response.
     def from_xml(xml)
       clear
@@ -168,11 +172,11 @@ class HyperactiveResource < ActiveResource::Base
             add humanized_attributes[attr_name], message[(attr_name.size + 1)..-1]
           end
         end
-        
+
         add_to_base message if attr_message.nil?
       end
     end
-    
+
     # Grabs errors from the XML response.
     def from_json(json)
       clear
@@ -184,7 +188,7 @@ class HyperactiveResource < ActiveResource::Base
             add humanized_attributes[attr_name], message[(attr_name.size + 1)..-1]
           end
         end
-        
+
         add_to_base message if attr_message.nil?
       end
     end
@@ -201,13 +205,13 @@ class HyperactiveResource < ActiveResource::Base
   # Calling this here means we can override these with our own versions
   # below.
   self.define_callbacks *ActiveRecord::Base::CALLBACKS
-  
+
   # make sure attributes of ARES has indifferent_access
   def initialize(attributes = {})
     @attributes     = {}.with_indifferent_access
     @prefix_options = {}
     load(attributes)
-  end                             
+  end
 
   # I always thought it was stupid that AR couldn't initialize from an
   # instance of itself :P
@@ -224,12 +228,12 @@ class HyperactiveResource < ActiveResource::Base
 
 
 
-  
+
   #This is required to make it behave like ActiveRecord
-  def attributes=(new_attributes)    
+  def attributes=(new_attributes)
     attributes.update(new_attributes)
   end
-   
+
   def to_xml(options = {})
     # fix for rails bug 2521 (auto dasherizing when no field passed in)
     # Remove this when Rails has been fixed.
@@ -245,12 +249,12 @@ class HyperactiveResource < ActiveResource::Base
   # Works either on a single object or a set of nested ones.
   # Will return nil if it can't find a valid object or object-array of the
   # type of the current class.
-  # 
+  #
   # eg:
   # Widget.from_xml('<widget><name>Thing</name></widget>')
   # => #<Widget:0xb6e8f420 ... @attributes={"name"=>"Thing"}>
   # Widget.from_xml('<widgets type="array"><widget><name>Thing</name></widget><widget><name>Thing2</name></widget></widgets>')
-  # => [#<Widget:0xb6e7b6c8 ... @attributes={"name"=>"Thing"}>, 
+  # => [#<Widget:0xb6e7b6c8 ... @attributes={"name"=>"Thing"}>,
   #     #<Widget:0xb6e7b740 ... @attributes={"name"=>"Thing2"}>
   def self.from_xml(the_xml)
     return nil if the_xml.blank?
@@ -260,10 +264,10 @@ class HyperactiveResource < ActiveResource::Base
     attr_name = self.name.underscore
     the_hash = Hash.from_xml(the_xml)
     # returning a single item
-    if the_hash.has_key?(attr_name) 
+    if the_hash.has_key?(attr_name)
       return self.new(the_hash[attr_name])
     # returning a collection
-    elsif the_hash.has_key?(attr_name.pluralize) 
+    elsif the_hash.has_key?(attr_name.pluralize)
       return the_hash[attr_name.pluralize].map {|item| self.new(item) }
     end
     # otherwise there's nothing there (or something we didn't expect)
@@ -281,7 +285,7 @@ class HyperactiveResource < ActiveResource::Base
     configuration = {}
     configuration.update(attr_names.extract_options!)
 
-    validates_each(attr_names,configuration) do |this_resource, attr_name, value|    
+    validates_each(attr_names,configuration) do |this_resource, attr_name, value|
       # skip if we allow nil and value is nil
       if (!configuration.has_key?(:allow_nil) || (configuration[:allow_nil] && !value.blank?))
         # TODO: make the below work
@@ -307,7 +311,7 @@ class HyperactiveResource < ActiveResource::Base
 
 
   # currently, ActiveResource doesn't handle a 404 on a destroy_all very
-  # nicely... 
+  # nicely...
   # Returns true if it destroyed them all successfully.
   # Returns nil if it didn't find any.
   #
@@ -331,27 +335,27 @@ class HyperactiveResource < ActiveResource::Base
   # This will save remotely after making sure there are no local errors
   # returns false if saving fails
   def save(perform_validations = true)
-    before_save    
+    before_save
     if perform_validations
       successful = self.valid?
       successful = super() if successful
     else
       successful = save_without_validation
     end
-    after_save if successful          
+    after_save if successful
     successful
-  end    
-    
+  end
+
   # Saves the model
   #
   # This will save remotely after making sure there are no local errors
   # Throws RecordNotSaved if saving fails
   def save!(perform_validations = true)
     save(perform_validations) || raise(ResourceNotSaved)
-  end 
- 
+  end
+
   # runs +validate+ and returns true if no errors were added otherwise false.
-  def valid? 
+  def valid?
     errors.clear
 
     run_callbacks(:validate)
@@ -368,7 +372,7 @@ class HyperactiveResource < ActiveResource::Base
     # we're valid if we found no errors
     errors.empty?
   end
-  
+
   # Returns the Errors object that holds all information about attribute error messages.
   def errors
     @errors ||= Errors.new(self)
@@ -398,41 +402,41 @@ class HyperactiveResource < ActiveResource::Base
   def count
     @attributes[:count]
   end
-  
+
   # copy/pasted from http://dev.rubyonrails.org/attachment/ticket/7308/reworked_activeresource_update_attributes_patch.diff
   #
-  # Updates a single attribute and requests that the resource be saved. 
-  # 
-  # Note: Unlike ActiveRecord::Base.update_attribute, this method <b>is</b> subject to normal validation 
-  # routines as an update sends the whole body of the resource in the request.  (See Validations). 
-  # As such, this method is equivalent to calling update_attributes with a single attribute/value pair. 
-  # 
-  # If the saving fails because of a connection or remote service error, an exception will be raised.  If saving 
-  # fails because the resource is invalid then <tt>false</tt> will be returned. 
-  #     
-  def update_attribute(name, value) 
+  # Updates a single attribute and requests that the resource be saved.
+  #
+  # Note: Unlike ActiveRecord::Base.update_attribute, this method <b>is</b> subject to normal validation
+  # routines as an update sends the whole body of the resource in the request.  (See Validations).
+  # As such, this method is equivalent to calling update_attributes with a single attribute/value pair.
+  #
+  # If the saving fails because of a connection or remote service error, an exception will be raised.  If saving
+  # fails because the resource is invalid then <tt>false</tt> will be returned.
+  #
+  def update_attribute(name, value)
     self.send("#{name}=".to_sym, value)
     self.save
-  end 
+  end
 
   # does an +update_attribute+, but raises +ResourceNotSaved+ if it fails
   def update_attribute!(name, value)
     update_attribute(name, value) || raise(ResourceNotSaved)
   end
- 
-  # Updates this resource withe all the attributes from the passed-in Hash and requests that 
-  # the record be saved. 
-  # 
-  # If the saving fails because of a connection or remote service error, an exception will be raised.  If saving 
-  # fails because the resource is invalid then <tt>false</tt> will be returned. 
-  # 
-  # Note: Though this request can be made with a partial set of the resource's attributes, the full body 
-  # of the request will still be sent in the save request to the remote service.  Also note that 
-  # ActiveResource currently uses string versions of attribute 
-  # names, so use <tt>update_attributes("name" => "ryan")</tt> <em>instead of</em> <tt>update_attribute(:name => "ryan")</tt>. 
-  #     
-  def update_attributes(attributes) 
-    load(attributes) && save 
+
+  # Updates this resource withe all the attributes from the passed-in Hash and requests that
+  # the record be saved.
+  #
+  # If the saving fails because of a connection or remote service error, an exception will be raised.  If saving
+  # fails because the resource is invalid then <tt>false</tt> will be returned.
+  #
+  # Note: Though this request can be made with a partial set of the resource's attributes, the full body
+  # of the request will still be sent in the save request to the remote service.  Also note that
+  # ActiveResource currently uses string versions of attribute
+  # names, so use <tt>update_attributes("name" => "ryan")</tt> <em>instead of</em> <tt>update_attribute(:name => "ryan")</tt>.
+  #
+  def update_attributes(attributes)
+    load(attributes) && save
   end
 
   #  Works the same as +update_attributes+ but uses +save!+ rather than
@@ -440,10 +444,10 @@ class HyperactiveResource < ActiveResource::Base
   #  Thus it will throw an exception if the save fails.
   def update_attributes!(attributes)
     load(attributes) || raise(ResourceNotSaved)
-    save! 
+    save!
   end
-  
-  
+
+
   # returns the raw data that the remote server returns for this object.
   # This is much more useful for non-html formats (eg getting the resource
   # in pdf-format so you can stream it to the user).
@@ -485,7 +489,7 @@ class HyperactiveResource < ActiveResource::Base
     def write_attribute(key, value)
       attributes[key.to_s] = value
     end
-    
+
     def attribute_before_type_cast(key)
       attributes[key]
     end
@@ -537,17 +541,17 @@ class HyperactiveResource < ActiveResource::Base
         self.class.format.encode(massaged_attributes, opts)
       end
     end
-    
+
     def save_nested
       return if nested_resources.blank?
       @saved_nested_resources = {}
       nested_resources.each do |nested_resource_name|
-        resources = attributes[nested_resource_name.to_s.pluralize] 
+        resources = attributes[nested_resource_name.to_s.pluralize]
         resources ||= send(nested_resource_name.to_s.pluralize)
         unless resources.nil?
           resources.each do |resource|
             @saved_nested_resources[nested_resource_name] = []
-            #We need to set a reference from this nested resource back to the parent  
+            #We need to set a reference from this nested resource back to the parent
 
             fk = self.respond_to?("#{nested_resource_name}_options") ? self.send("#{nested_resource_name}_options")[:foreign_key]  : "#{self.class.name.underscore}_id"
             resource.send("#{fk}=", self.to_param)
@@ -556,7 +560,7 @@ class HyperactiveResource < ActiveResource::Base
         end
       end
     end
-    
+
     # Update the resource on the remote service.
     def update
       return false unless self.valid?
@@ -579,8 +583,8 @@ class HyperactiveResource < ActiveResource::Base
       end
       run_callbacks(:after_create)
       self
-    end  
-    
+    end
+
     def merge_saved_nested_resources_into_attributes
       return if nested_resources.blank?
       @saved_nested_resources.each_key do |nested_resource_name|
@@ -591,23 +595,23 @@ class HyperactiveResource < ActiveResource::Base
       end
       @saved_nested_resources = []
     end
-    
+
     def id_from_response(response)
-      # response['Location'][/\/([^\/]*?)(\.\w+)?$/, 1] if response['Location'] 
+      # response['Location'][/\/([^\/]*?)(\.\w+)?$/, 1] if response['Location']
       Hash.from_xml(response.body).values[0][self.class.primary_key.to_s]
     end
 
     def after_save
     end
-    
+
     def before_save
       before_save_or_validate
     end
-    
+
     def before_validate
       before_save_or_validate
     end
-    
+
     #TODO I don't like the way this works. If you override validate you have to remember to call before_validate or super..
     def validate
       before_validate
@@ -621,7 +625,7 @@ class HyperactiveResource < ActiveResource::Base
 
     def before_save_or_validate
       #Do nothing
-    end     
+    end
 
 
     # The list of columns that this HyRes object will recognise is stored on
@@ -630,11 +634,11 @@ class HyperactiveResource < ActiveResource::Base
     # create/update.
     class_inheritable_accessor :columns
     self.columns = [] #:nodoc:
-    
+
     def self.column( names )
       raise ArgumentError if names.blank?
       self.columns << names
-    end 
+    end
 
     ####################################################################
     # Associations
@@ -650,7 +654,7 @@ class HyperactiveResource < ActiveResource::Base
     class_inheritable_accessor :nested_resources #:nodoc:
     class_inheritable_accessor :skip_to_xml_for
     class_inheritable_accessor :add_to_xml_for
-    
+
     self.nested_resources = [] #:nodoc:
     self.has_manys = [] #:nodoc:
     self.nested_has_manys = [] #:nodoc:
@@ -681,7 +685,7 @@ class HyperactiveResource < ActiveResource::Base
           self.belong_to_class_names.merge!({names=>opts[:class_name]})
         end
         # setup a nested resource route for this belongs_to association.
-        if opts.has_key?(:nested) && opts[:nested] 
+        if opts.has_key?(:nested) && opts[:nested]
           raise ArgumentError, "the nested option can only deal with a single association at present, you passed #{names.length}" if names.blank? || (names.acts_like?(:array) && names.length != 1)
           # dearrayify if necessary
           the_name = names.acts_like?(:array) ? names[0] : names
@@ -690,7 +694,7 @@ class HyperactiveResource < ActiveResource::Base
       end
       self.belong_tos << names
     end
-      
+
     def self.has_many( names )
       raise ArgumentError if names.blank?
       self.has_manys << names
@@ -700,8 +704,8 @@ class HyperactiveResource < ActiveResource::Base
       raise ArgumentError if name.is_a?(Array) && name.length > 1
       self.has_ones = name.arrayify
     end
-     
-  #  When you call any of these dynamically inferred methods 
+
+  #  When you call any of these dynamically inferred methods
   #  the first call sets it so it's no longer dynamic for subsequent calls
   #  Ie. If there is residencies but no residency_ids
   #  then when you first call residency_ids it'll pull the residency ids into the attribute: residency_ids..
@@ -725,10 +729,10 @@ class HyperactiveResource < ActiveResource::Base
       when *self.has_many_ids
         return has_many_ids_getter_method_missing(name)
       when *self.has_ones
-        return has_one_getter_method_missing(name)      
+        return has_one_getter_method_missing(name)
       when *self.columns
         return column_getter_method_missing(name)
-      end                                     
+      end
 
       if name.to_s =~ /^(.*)_before_type_cast/
         attribute_name = name.to_s.match(/^(.*)_before_type_cast/)[1]
@@ -739,10 +743,10 @@ class HyperactiveResource < ActiveResource::Base
       # nested option - store the new value in the @prefix_options
       if self.nested
         case name.to_s
-        when "#{self.nested}_id=" 
+        when "#{self.nested}_id="
           # if we've passed in a bare id
           @prefix_options[name.to_s.first(-1)] = args.first
-        when "#{self.nested}=" 
+        when "#{self.nested}="
           # if we've passed an instance - just use the id
           @prefix_options[name.to_s.first(-1)] = args.first.to_param
         end
@@ -750,35 +754,35 @@ class HyperactiveResource < ActiveResource::Base
 
       super(name, *args)
     end
-    
+
     # Used by method_missing & load to infer setter & getter names from association names
-    def has_many_ids    
+    def has_many_ids
       @has_many_ids ||= self.has_manys.map { |hm| "#{hm.to_s.singularize}_ids".to_sym }
     end
-    
+
     # Used by method_missing & load to infer setter & getter names from association names
     def belong_to_ids
       @belong_to_ids ||= self.belong_tos.map { |bt| "#{bt}_id".to_sym }
     end
-    
+
     # Calls to column getter when there is no attribute for it, nor a previous set called it will return nil rather than freak out
     def column_getter_method_missing( name )
       self.call_setter(name, nil)
     end
-    
+
     #Getter for a belong_to relationship checks if the _id exists and dynamically finds the object
     def belong_to_getter_method_missing( name )
       # fetch the id (will fetch the object too)
       association_id = self.send("#{name.to_s.underscore}_id")
-      return nil if association_id.blank? 
+      return nil if association_id.blank?
 
       #If there is a blah_id but not blah get it via a find
       call_setter(name, (self.belong_to_class_names[name]||name).to_s.camelize.constantize.find(association_id))
     end
-    
+
     #Getter for a belong_to's id will return the object.to_param if it exists
     def belong_to_id_getter_method_missing( name )
-      #The assumption is that this will always be called with a name that ends in _id   
+      #The assumption is that this will always be called with a name that ends in _id
       association_name = self.class.remove_id name
       # If there is the obj itself rather than the blah_id Use the blah.to_param for blah_id
       return call_setter( name, attributes[association_name].to_param ) unless attributes[association_name].nil?
@@ -793,15 +797,15 @@ class HyperactiveResource < ActiveResource::Base
       end
 
       # call_setter( name, nil ) - Just like a column
-      column_getter_method_missing( name ) 
+      column_getter_method_missing( name )
     end
-    
+
     #If there is _ids, but not objects array the method missing for has_many will get each object via id. Otherwise it will return
     #an empty array (like active
     def has_many_getter_method_missing( name )
       method_id_name = "#{name.to_s.singularize.underscore}_ids"
       # see if we already have ids - and find them if we don't
-      association_ids = self.send(method_id_name) 
+      association_ids = self.send(method_id_name)
       if association_ids.blank?
         # if we get to here - then we already tried calling the
         # collection_fetch and failed - so just say we have none.
@@ -819,7 +823,7 @@ class HyperactiveResource < ActiveResource::Base
         my_klass_id = (my_klass_name + '_id').to_sym
         opts = the_klass.nested && the_klass.nested == my_klass_name.to_sym ? {my_klass_id => self.to_param}  : nil
 
-        associated_models = association_ids.collect do |associated_id| 
+        associated_models = association_ids.collect do |associated_id|
           if opts
             the_klass.find(:all, :conditions => opts.merge(:id => associated_id))
           else
@@ -830,7 +834,7 @@ class HyperactiveResource < ActiveResource::Base
         call_setter(name, associated_models)
       end
     end
-    
+
     def has_many_ids_getter_method_missing( name )
       association_name = self.class.remove_id(name).pluralize #(residency_ids => residencies)
       unless attributes[association_name].nil?
@@ -896,12 +900,12 @@ class HyperactiveResource < ActiveResource::Base
     end
     # just returns the current value for "nested"
     def self.nested
-      @nested 
+      @nested
     end
 
-    
+
     def has_one_getter_method_missing( name )
-      self.new? ? nil : 
+      self.new? ? nil :
         call_setter( name, name.to_s.camelize.constantize.send("find_by_#{self.class.name.underscore}_id", self.to_param) )
     end
 
@@ -910,14 +914,14 @@ class HyperactiveResource < ActiveResource::Base
       # puts "****************** call_setter( #{name}, #{value} )"
       self.send( "#{name}=", value )
     end
-    
+
     #Chops the _id off the end of a method name to be used in method_missing
     def self.remove_id( name_with_id )
       name_with_id.to_s.gsub(/_ids?$/,'')
     end
 
     #There are lots of differences between active_resource's initializer and active_record's
-    #ARec lets you pass a block 
+    #ARec lets you pass a block
     #Arec doesn't clone
     #Arec calls blah= on everything that's passed in.
     #Arec will turn a "1" into a 1 if it's in an ID column (or any integer for that matter)
@@ -926,13 +930,13 @@ class HyperactiveResource < ActiveResource::Base
       raise ArgumentError, "expected an attributes Hash, got #{attributes.inspect}" unless attributes.is_a?(Hash)
       # null-values are meaningful here, so merge in the keep-if-null option
       @prefix_options, attributes = split_options(attributes.merge(:keep_if_null => true))
-      attributes.each do |key, value|      
+      attributes.each do |key, value|
         @attributes[key.to_s] =
           case value
             when Array
               #BEGIN ADDITION TO AR::BASE
               load_array(key, value)
-              #END ADDITION              
+              #END ADDITION
             when Hash
               resource = find_or_create_resource_for(key)
               resource.new(value)
@@ -940,13 +944,13 @@ class HyperactiveResource < ActiveResource::Base
               #BEGIN ADDITION TO AR::BASE
               convert_to_i_if_id_field(key, value)
               #WAS: value #.dup rescue value #REMOVED FROM AR:BASE
-              #END ADDITION                                                  
+              #END ADDITION
             end
         #BEGIN ADDITION TO AR::BASE
         call_attribute_setter(key, value)
         #END ADDITION
         if key.to_sym == self.class.primary_key.to_sym
-          @primary_key_value = value 
+          @primary_key_value = value
         end
       end
       # overwrite the primary_key if it's different from the default
@@ -959,7 +963,7 @@ class HyperactiveResource < ActiveResource::Base
       #END ADDITION
       result || self
     end
-    
+
     #Called by overriden load
     def load_array( key, value )
       if self.has_many_ids.include? key
@@ -972,16 +976,16 @@ class HyperactiveResource < ActiveResource::Base
         value.map { |attrs| resource.new(attrs) }
       end
     end
-      
+
     #Called by overriden load
     def convert_to_i_if_id_field( key, value )
-      #This might be an id of an association, and if they are passing in a string it should be to_ied                        
+      #This might be an id of an association, and if they are passing in a string it should be to_ied
       # if not - just pass it back straight away
       return value unless self.belong_to_ids.include? key && (!value.nil? || (value.respond_to?(:empty?) && value.empty?))
       # otherwise cast it to an int
       value.to_i
     end
-    
+
     #TODO Consolidate this with call_setter
     #Called by overriden load
     def call_attribute_setter( key, value )
@@ -989,8 +993,8 @@ class HyperactiveResource < ActiveResource::Base
       # => Now, we are doing both
       setter_method_name = "#{key}="
       self.send( setter_method_name, @attributes[key.to_s] ) if self.respond_to? setter_method_name
-    end    
-    
+    end
+
     def attribute_getter?(method)
       columns.include?(method.to_sym)
     end
@@ -999,7 +1003,7 @@ class HyperactiveResource < ActiveResource::Base
       columns.include?(method.to_s.gsub(/=$/, '').to_sym)
     end
 
-  
+
     # add dynamic finders straight out of active record
     # This file just contains the matchers - which is really just a set of
     # RegExes that will apply to HyRes as easily as AR
@@ -1150,7 +1154,7 @@ class HyperactiveResource < ActiveResource::Base
       options[:from] = from_value if from_value
       options
     end
- 
+
     # convenience methods as per ActiveRecord
     def self.first(args = {})
       self.find(:first, args)
@@ -1190,10 +1194,10 @@ class HyperactiveResource < ActiveResource::Base
 
 
     # Counts the number of items in your API that match the given
-    # conditions. 
+    # conditions.
     #
     # If you pass in nothing, it will try the +default_counter_path+
-    # 
+    #
     # If your API does not use the +default counter_path+, you can override it in one of two ways:
     #
     # If the path is the same for every model, you can pass the string-path to
@@ -1202,10 +1206,10 @@ class HyperactiveResource < ActiveResource::Base
     # Alternatively, you can pass in the counter_path for any specific instance of
     # count by passing it as an arg thus:
     # Widget.count(:counter_path => '/my_app/my_widgets_count.xml')
-    # 
+    #
     # Both of these will still allow you to pass finder-args to the count method eg:.
     # Widget.count(:counter_path => '/my_app/my_widgets_count.xml', :name => 'wodget')
-    # 
+    #
     # ...if all else fails (ie it tires and gets a ResourceNotFound error) -
     # the code will do a full fetch and count on a local array. If you know
     # there's no counter-action in your remote API, you're probably better
@@ -1224,7 +1228,7 @@ class HyperactiveResource < ActiveResource::Base
         try_path = self.counter_path
         # passed-in path always overrides the default
         if (args.has_key?(:counter_path) && !args[:counter_path].blank?)
-          try_path = args[:counter_path] 
+          try_path = args[:counter_path]
           args.delete(:counter_path)
         end
         # update the args to add our counter path.
@@ -1248,7 +1252,7 @@ class HyperactiveResource < ActiveResource::Base
         # success!
         them.count.to_i
 
-      rescue HyperactiveResource::ResourceNotFound, ActiveResource::ResourceNotFound, 
+      rescue HyperactiveResource::ResourceNotFound, ActiveResource::ResourceNotFound,
         ActiveResource::ServerError
         # if we failed to find any, or the remote server exploded (eg on a bad
         # route), we want to have one more go before falling over.
@@ -1311,7 +1315,7 @@ class HyperactiveResource < ActiveResource::Base
     def collection_path(prefix_options = {}, query_options = nil, suffix_options = [])
       prefix_options = @prefix_options.merge(prefix_options)
       self.class.collection_path(prefix_options, query_options, suffix_options)
-    end                    
+    end
 
     private #####################################################################
 
@@ -1327,7 +1331,7 @@ class HyperactiveResource < ActiveResource::Base
         prefix_options, query_options = {}, {}
 
         # When building URLs, we want to delete null-valued keys
-        # (eg :conditions => nil), but we want to be able to tell this 
+        # (eg :conditions => nil), but we want to be able to tell this
         # method not to do this if we're, say, building a set of attributes,
         # and null-values are meaningful (eg :name => nil)
         keep_if_null = options.delete(:keep_if_null)
